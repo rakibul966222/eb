@@ -16,7 +16,6 @@ import ProfileSetupPage from './pages/ProfileSetupPage';
 import SettingsPage from './pages/SettingsPage';
 import LoadingScreen from './components/LoadingScreen';
 
-// Auth Context
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
@@ -38,7 +37,7 @@ const ProtectedRoute: React.FC<React.PropsWithChildren<{}>> = ({ children }) => 
   
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" />;
-  if (!profile) return <Navigate to="/setup" />;
+  if (user && !profile) return <Navigate to="/setup" />;
   
   return <>{children}</>;
 };
@@ -49,9 +48,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    if (!user) return;
+    if (!auth.currentUser) return;
     try {
-      const docRef = doc(db, 'users', user.uid);
+      const docRef = doc(db, 'users', auth.currentUser.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setProfile(docSnap.data() as UserProfile);
@@ -59,49 +58,43 @@ const App: React.FC = () => {
         setProfile(null);
       }
     } catch (err) {
-      console.warn("Profile fetch restricted by rules:", err);
+      console.error("Profile refresh error", err);
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setLoading(true);
       setUser(u);
+      
       if (u) {
-        // Presence tracking logic with extreme safety
-        try {
-          const connectedRef = ref(rtdb, '.info/connected');
-          const statusRef = ref(rtdb, `status/${u.uid}`);
-          
-          onValue(connectedRef, (snap) => {
-            if (snap.val() === true) {
-              onDisconnect(statusRef).set({
-                isOnline: false,
-                lastSeen: serverTimestamp(),
-              }).catch(() => {});
+        // Presence tracking (RTDB)
+        const statusRef = ref(rtdb, `status/${u.uid}`);
+        const connectedRef = ref(rtdb, '.info/connected');
+        
+        onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+            onDisconnect(statusRef).set({
+              isOnline: false,
+              lastSeen: serverTimestamp(),
+            });
+            set(statusRef, {
+              isOnline: true,
+              lastSeen: serverTimestamp(),
+            });
 
-              set(statusRef, {
-                isOnline: true,
-                lastSeen: serverTimestamp(),
-              }).catch(() => {});
-            }
-          });
-        } catch (e) {
-          console.warn("RTDB Presence tracking unavailable (check rules)");
-        }
-
-        // Sync to Firestore profile
-        try {
-          const firestoreRef = doc(db, 'users', u.uid);
-          const snap = await getDoc(firestoreRef);
-          if (snap.exists()) {
-            setProfile(snap.data() as UserProfile);
-            // Non-blocking update
-            updateDoc(firestoreRef, { isOnline: true, lastSeen: Date.now() }).catch(() => {});
-          } else {
-            setProfile(null);
+            // Also update Firestore when coming online
+            const docRef = doc(db, 'users', u.uid);
+            updateDoc(docRef, { isOnline: true, lastSeen: Date.now() }).catch(() => {});
           }
-        } catch (firestoreErr) {
-          console.warn("Firestore profile sync unavailable (check rules)");
+        });
+
+        // Check profile
+        const docRef = doc(db, 'users', u.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        } else {
           setProfile(null);
         }
       } else {
@@ -111,17 +104,17 @@ const App: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, refreshProfile }}>
       <HashRouter>
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors selection:bg-indigo-500/30">
           <Toaster position="top-center" reverseOrder={false} />
           <Routes>
-            <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-            <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage />} />
-            <Route path="/setup" element={user ? <ProfileSetupPage /> : <Navigate to="/login" />} />
+            <Route path="/login" element={user && profile ? <Navigate to="/" /> : <LoginPage />} />
+            <Route path="/register" element={user && profile ? <Navigate to="/" /> : <RegisterPage />} />
+            <Route path="/setup" element={user && profile ? <Navigate to="/" /> : (user ? <ProfileSetupPage /> : <Navigate to="/login" />)} />
             <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           </Routes>

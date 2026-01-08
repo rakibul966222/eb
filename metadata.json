@@ -1,6 +1,6 @@
 {
-  "name": "GeminiChat Pro",
-  "description": "A high-performance real-time chat application with integrated AI assistance, built with React, Firebase, and Gemini Pro.",
+  "name": "EB Chat",
+  "description": "EB Chat - A premium, secure communication ecosystem with real-time intelligence.",
   "requestFramePermissions": [
     "camera",
     "microphone"

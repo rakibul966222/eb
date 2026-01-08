@@ -9,6 +9,12 @@ export interface UserProfile {
   lastSeen: number;
   isOnline: boolean;
   createdAt: number;
+  blockedUsers?: string[]; // IDs of users this user has blocked
+  settings?: {
+    showOnlineStatus: boolean;
+    readReceipts: boolean;
+    notificationsEnabled: boolean;
+  };
 }
 
 export interface Message {
@@ -18,6 +24,8 @@ export interface Message {
   timestamp: number;
   seen: boolean;
   type: 'text' | 'image' | 'voice' | 'ai';
+  edited?: boolean;
+  reactions?: Record<string, string>; // userId: emoji
   metadata?: {
     width?: number;
     height?: number;
@@ -30,9 +38,4 @@ export interface ChatSession {
   participants: string[];
   lastMessage?: string;
   lastTimestamp?: number;
-}
-
-export interface AppState {
-  currentUser: UserProfile | null;
-  loading: boolean;
 }
