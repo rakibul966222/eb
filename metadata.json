@@ -1,0 +1,8 @@
+{
+  "name": "GeminiChat Pro",
+  "description": "A high-performance real-time chat application with integrated AI assistance, built with React, Firebase, and Gemini Pro.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
